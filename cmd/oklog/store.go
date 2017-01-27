@@ -259,7 +259,7 @@ func runStore(args []string) error {
 	{
 		g.Add(func() error {
 			mux := http.NewServeMux()
-			mux.Handle("/store/", http.StripPrefix("/store", store.NewAPI(
+			api := store.NewAPI(
 				peer,
 				storeLog,
 				httpClient,
@@ -267,7 +267,13 @@ func runStore(args []string) error {
 				replicatedBytes.WithLabelValues("ingress"),
 				apiDuration,
 				logger,
-			)))
+			)
+			defer func() {
+				if err := api.Close(); err != nil {
+					level.Warn(logger).Log("err", err)
+				}
+			}()
+			mux.Handle("/store/", http.StripPrefix("/store", api))
 			registerMetrics(mux)
 			registerProfile(mux)
 			return http.Serve(apiListener, mux)
